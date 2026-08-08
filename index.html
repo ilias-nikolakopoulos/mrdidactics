@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mitral Regurgitation — Interactive Figure</title>
+<style>
+  :root{
+    --bg:#eef1fe;
+    --navy:#2b3a8f;
+    --ink:#1e2a6e;
+    --card:#ffffff;
+    --accent:#5b8def;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:#f7f8ff;
+    display:flex;align-items:center;justify-content:center;
+    min-height:100vh;padding:24px;
+  }
+  .figure-wrap{
+    position:relative;
+    width:100%;max-width:1220px;
+    background:var(--bg);
+    border-radius:24px;
+    box-shadow:0 4px 24px rgba(43,58,143,.08);
+    overflow:visible;
+  }
+  svg{display:block;width:100%;height:auto;border-radius:24px}
+
+  /* ---- info hotspots ---- */
+  .hotspot{cursor:pointer;outline:none}
+  .hotspot circle.ring{
+    fill:rgba(91,141,239,.55);
+    stroke:#ffffff;stroke-width:2;
+    transition:transform .15s ease, fill .15s ease;
+    transform-origin:center;
+    transform-box:fill-box;
+  }
+  .hotspot:hover circle.ring,
+  .hotspot:focus-visible circle.ring{
+    fill:rgba(43,58,143,.85);
+    transform:scale(1.25);
+  }
+  .hotspot:focus-visible circle.ring{
+    stroke:#ffb703;stroke-width:3;
+  }
+  .hotspot text{
+    fill:#fff;font-weight:700;font-size:15px;
+    font-family:Georgia,serif;font-style:italic;
+    pointer-events:none;
+  }
+  .pulse{
+    fill:none;stroke:#5b8def;stroke-width:2;opacity:0;
+    animation:pulse 2.4s ease-out infinite;
+    transform-origin:center;transform-box:fill-box;
+    pointer-events:none;
+  }
+  @keyframes pulse{
+    0%{transform:scale(1);opacity:.7}
+    70%{transform:scale(2.1);opacity:0}
+    100%{opacity:0}
+  }
+  @media (prefers-reduced-motion:reduce){
+    .pulse{animation:none;opacity:0}
+    .hotspot circle.ring{transition:none}
+  }
+
+  /* ---- tooltip cards ---- */
+  .tooltip{
+    position:absolute;
+    max-width:340px;
+    max-height:440px;
+    overflow-y:auto;
+    background:var(--card);
+    border:1px solid #d7defc;
+    border-radius:14px;
+    padding:14px 16px;
+    box-shadow:0 10px 30px rgba(30,42,110,.18);
+    opacity:0;visibility:hidden;
+    transform:translateY(6px);
+    transition:opacity .18s ease, transform .18s ease, visibility .18s;
+    z-index:10;
+    pointer-events:none;
+  }
+  .tooltip.show{
+    opacity:1;visibility:visible;transform:translateY(0);
+    pointer-events:auto;
+  }
+  .tooltip.wide{max-width:560px}
+  .tooltip .q{
+    font-weight:700;color:var(--ink);
+    font-size:.95rem;line-height:1.35;
+    margin-bottom:6px;
+  }
+  .tooltip .a{
+    color:#3a4370;font-size:.88rem;line-height:1.5;
+  }
+  .tooltip .a b{color:var(--ink)}
+  .tooltip .a.hidden-a{
+    display:none;
+  }
+  .tooltip .a.hidden-a.open{
+    display:block;
+    animation:fadeIn .25s ease;
+  }
+  @keyframes fadeIn{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){
+    .tooltip .a.hidden-a.open{animation:none}
+  }
+  .reveal-btn{
+    display:inline-block;
+    font:inherit;font-size:.82rem;font-weight:600;
+    color:#3d5bd9;background:#eef2ff;
+    border:1px solid #c9d4fb;border-radius:999px;
+    padding:5px 14px;margin-top:2px;
+    cursor:pointer;
+    transition:background .15s ease,color .15s ease;
+  }
+  .reveal-btn:hover{background:#3d5bd9;color:#fff}
+  .reveal-btn:focus-visible{outline:2px solid #ffb703;outline-offset:2px}
+  .reveal-btn.gone{display:none}
+  .bonus{
+    margin-top:12px;padding-top:10px;
+    border-top:1px dashed #c9d4fb;
+  }
+  .bonus .q .bonus-tag{color:#c0392b}
+
+  /* ---- eccentric (wall-hugging) jet mode ---- */
+  #jet{transition:opacity .45s ease}
+  #jet.off{opacity:0}
+  .ecc-layer{opacity:0;transition:opacity .45s ease;pointer-events:none}
+  .ecc-layer.on{opacity:1}
+  .ecc-link{
+    color:#3d5bd9;font-weight:700;cursor:pointer;
+    text-decoration:underline dotted;text-underline-offset:2px;
+  }
+  .ecc-link:hover{color:#2b3a8f}
+
+  /* ---- entrainment overlay (shown while the jet-widening answer is revealed) ---- */
+  .entrain-layer{
+    opacity:0;
+    transition:opacity .45s ease;
+    pointer-events:none;
+  }
+  .entrain-layer.on{opacity:1}
+  .entrain-drift-top{animation:driftDown 2.6s ease-in-out infinite alternate}
+  .entrain-drift-bottom{animation:driftUp 2.6s ease-in-out infinite alternate}
+  @keyframes driftDown{from{transform:translateY(0)}to{transform:translateY(9px)}}
+  @keyframes driftUp{from{transform:translateY(0)}to{transform:translateY(-9px)}}
+  @media (prefers-reduced-motion:reduce){
+    .entrain-drift-top,.entrain-drift-bottom{animation:none}
+  }
+  .tooltip::after{
+    content:"";position:absolute;
+    width:12px;height:12px;background:var(--card);
+    border-left:1px solid #d7defc;border-bottom:1px solid #d7defc;
+    transform:rotate(45deg);
+    left:24px;bottom:-7px;
+  }
+  .tooltip.below::after{
+    bottom:auto;top:-7px;
+    transform:rotate(225deg);
+  }
+  .tooltip.side::after{display:none}
+
+  @media (max-width:640px){
+    .tooltip{max-width:78vw}
+    .tooltip.wide{max-width:92vw}
+  }
+</style>
+</head>
+<body>
+
+<div class="figure-wrap" id="wrap">
+
+  <svg id="fig" viewBox="0 0 1220 742" xmlns="http://www.w3.org/2000/svg" role="img"
+       aria-label="Diagram of mitral regurgitation showing streamlines converging into hemispheric isovelocity shells in the left ventricle, the regurgitant orifice between the mitral leaflets, and a turbulent regurgitant jet entering the left atrium.">
+
+    <!-- title -->
+    <text x="610" y="62" text-anchor="middle" font-size="34" font-weight="700"
+          fill="#1e2a6e" font-family="inherit" letter-spacing="2.5">MITRAL REGURGITATION JET</text>
+
+    <!-- chamber labels -->
+    <text x="105" y="152" font-size="30" font-weight="700" fill="#2b3a8f" font-family="inherit">LV</text>
+    <text x="1040" y="152" font-size="30" font-weight="700" fill="#2b3a8f" font-family="inherit">LA</text>
+
+    <defs>
+      <marker id="flowArrow" viewBox="0 0 10 10" refX="8" refY="5"
+              markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 1.5 L 9 5 L 0 8.5 Z" fill="#8f9ad4"/>
+      </marker>
+      <marker id="isoArrow" viewBox="0 0 10 10" refX="8" refY="5"
+              markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+        <path d="M 0 1.5 L 9 5 L 0 8.5 Z" fill="#1e2a6e"/>
+      </marker>
+      <marker id="isoArrowFast" viewBox="0 0 10 10" refX="8" refY="5"
+              markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 1.5 L 9 5 L 0 8.5 Z" fill="#a86e00"/>
+      </marker>
+      <marker id="isoArrowSlow" viewBox="0 0 10 10" refX="8" refY="5"
+              markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M 0 1.5 L 9 5 L 0 8.5 Z" fill="#1e8f60"/>
+      </marker>
+    </defs>
+
+    <!-- subtle color-Doppler mosaic in the flow convergence zone (drawn first = bottom layer) -->
+    <g id="lvMosaic"></g>
+
+    <!-- convergence streamlines (thin gray, funneling into the orifice, arrow-tipped) -->
+    <g fill="none" stroke="#b9c2e8" stroke-width="1.5" opacity=".85" id="streamlines"></g>
+
+    <!-- PISA isovelocity shells: full hemispheres based on the valve plane -->
+    <g fill="none" stroke-linecap="round" id="shells"></g>
+
+    <!-- velocity vector field (populated by JS, shown while the PISA card is open) -->
+    <g id="velField" class="ecc-layer"></g>
+
+    <!-- perpendicular-line demo (populated by JS, toggled from the PISA card) -->
+    <g id="isoDemo" class="ecc-layer"></g>
+
+    <!-- mitral leaflets, interrupted by the regurgitant orifice -->
+    <g stroke="#2b3a8f" stroke-width="4" id="leaflets">
+      <line x1="497" y1="185" x2="497" y2="349"/>
+      <line x1="510" y1="185" x2="510" y2="349"/>
+      <line x1="497" y1="393" x2="497" y2="558"/>
+      <line x1="510" y1="393" x2="510" y2="558"/>
+    </g>
+    <text x="462" y="228" font-size="17" font-weight="700" fill="#2b3a8f" font-family="inherit">AML</text>
+    <text x="463" y="537" font-size="17" font-weight="700" fill="#2b3a8f" font-family="inherit">PML</text>
+
+    <!-- regurgitant orifice: serrated leaflet tips / turbulence in the gap -->
+    <g id="orifice"></g>
+
+    <!-- jet: ERO width at the valve, narrowing to the vena contracta, then expanding -->
+    <g id="jet"></g>
+
+    <!-- eccentric wall-hugging jet mode (populated by JS, toggled from the jet card) -->
+    <g id="eccWall" class="ecc-layer"></g>
+    <g id="eccJet" class="ecc-layer"></g>
+
+    <!-- LA blood entrainment overlay (populated by JS, shown on jet-card reveal) -->
+    <g id="entrainLayer" class="entrain-layer"></g>
+
+    <!-- hotspots (added by JS so pulses sit under buttons) -->
+    <g id="hotspots"></g>
+  </svg>
+
+</div>
+
+<script>
+(function(){
+  const svg = document.getElementById('fig');
+  const NS = 'http://www.w3.org/2000/svg';
+  const ox = 503.5, oy = 371;        // center of the regurgitant orifice, on the valve plane
+  const eroHalf = 22;                // ERO half-height (gap: y 349–393)
+
+  /* ---------- convergence streamlines ----------
+     Radial-ish curves that funnel from the far field into the orifice,
+     crossing the isovelocity shells roughly perpendicular. */
+  const stream = document.getElementById('streamlines');
+  const nLines = 13;
+  for(let i=0;i<nLines;i++){
+    const th = (97 + i*(166/(nLines-1))) * Math.PI/180;   // 97° … 263°
+    const r0 = 385 + 18*Math.sin(i*2.1);                  // start radius (far field)
+    const rEnd = 14;                                       // converge to just outside orifice
+    const x0 = ox + r0*Math.cos(th),  y0 = oy - r0*Math.sin(th);
+    // pull the mid control point toward straight-left (180°) for a gentle curve
+    const thMid = th + (Math.PI - th)*0.22;
+    const rMid = r0*0.45;
+    const xm = ox + rMid*Math.cos(thMid), ym = oy - rMid*Math.sin(thMid);
+    const thEndAdj = th + (Math.PI - th)*0.10;
+    const x1 = ox + rEnd*Math.cos(thEndAdj), y1 = oy - rEnd*Math.sin(thEndAdj);
+    const p = document.createElementNS(NS,'path');
+    p.setAttribute('d',
+      `M ${x0.toFixed(1)} ${y0.toFixed(1)} Q ${xm.toFixed(1)} ${ym.toFixed(1)} ${x1.toFixed(1)} ${y1.toFixed(1)}`);
+    p.setAttribute('marker-end','url(#flowArrow)');
+    stream.appendChild(p);
+  }
+
+  /* ---------- isovelocity shells (PISA) ----------
+     Full hemispheres based on the valve plane (ends touch the leaflet line).
+     The innermost shells are NARROWER than the ERO gap (r < 22),
+     since flow keeps accelerating right up to the orifice. */
+  const shells = document.getElementById('shells');
+  const shellDefs = [
+    {r:222, c:'#1d2f8f', w:3.4},
+    {r:190, c:'#2b56c4', w:3.2},
+    {r:160, c:'#1f8fbf', w:3.0},
+    {r:132, c:'#27a87a', w:2.9},
+    {r:106, c:'#7ab648', w:2.8},
+    {r:82,  c:'#d9a520', w:2.7},
+    {r:60,  c:'#e07b28', w:2.6},
+    {r:41,  c:'#e05a26', w:2.5},
+    {r:26,  c:'#d43a20', w:2.4},   // approaching ERO size
+    {r:16,  c:'#c22b1c', w:2.2},   // narrower than ERO (16 < 22)
+    {r:9,   c:'#a81f16', w:2.0}    // narrower still
+  ];
+  shellDefs.forEach(s=>{
+    shells.appendChild(hemisphere(ox, oy, s.r, s.c, s.w));
+  });
+
+  function hemisphere(cx, cy, r, color, w){
+    // hemisphere opening left, both ends on the valve plane (x = cx)
+    const p = document.createElementNS(NS,'path');
+    p.setAttribute('d', `M ${cx} ${(cy-r).toFixed(1)} A ${r} ${r} 0 0 0 ${cx} ${(cy+r).toFixed(1)}`);
+    p.setAttribute('stroke', color);
+    p.setAttribute('stroke-width', w);
+    return p;
+  }
+
+  /* ---------- regurgitant orifice: serrated tips in the leaflet gap ---------- */
+  const orf = document.getElementById('orifice');
+
+  /* ---------- mosaic regurgitant jet ----------
+     Starts at ERO width (half = 22), narrows to the vena contracta
+     (half ≈ 13, i.e. VC < ERO), then expands into the LA. */
+  const jet = document.getElementById('jet');
+  const palette = ['#12266b','#1d2f8f','#e0301e','#f2622e','#f4a91d','#f7d23e','#5bc4ea','#2b7fd4'];
+
+  function jetHalfWidth(x){
+    const t = x - 512;               // downstream of the orifice exit
+    if(t < 0) return eroHalf;
+    if(t < 42){                      // contraction: ERO → vena contracta
+      return eroHalf - (eroHalf-13)*(t/42);
+    }
+    if(t < 78){                      // short waist
+      return 13 + 0.06*(t-42);
+    }
+    return 15.2 + 0.25*(t-78);       // expanding turbulent cone into LA
+  }
+
+  /* ---------- subtle LV-side mosaic (flow convergence zone) ----------
+     Real color Doppler paints the convergence zone too. Kept faint:
+     small translucent dots, denser and slightly stronger near the orifice,
+     layered UNDER the streamlines and PISA shells so those stay dominant. */
+  (function buildLvMosaic(){
+    const lv = document.getElementById('lvMosaic');
+    let ls = 99;
+    const lrnd = ()=>{ ls=(ls*9301+49297)%233280; return ls/233280; };
+    const rMax = 232;
+    const f = document.createDocumentFragment();
+    for(let i=0;i<1900;i++){
+      const th = (95 + lrnd()*170) * Math.PI/180;          // LV half-plane
+      const rr = 14 + lrnd()*(rMax-14);
+      // keep more dots near the orifice, thin out with distance
+      if(lrnd() > Math.pow(1 - rr/(rMax+30), 0.50)) continue;
+      const c = document.createElementNS(NS,'circle');
+      c.setAttribute('cx',(ox + rr*Math.cos(th)).toFixed(1));
+      c.setAttribute('cy',(oy - rr*Math.sin(th)).toFixed(1));
+      c.setAttribute('r',(1.5 + lrnd()*2.5).toFixed(1));
+      c.setAttribute('fill', palette[Math.floor(lrnd()*palette.length)]);
+      c.setAttribute('opacity',(0.18 + 0.24*(1 - rr/rMax)).toFixed(2));
+      f.appendChild(c);
+    }
+    lv.appendChild(f);
+  })();
+
+  // seeded pseudo-random for stable layout
+  let seed = 42;
+  function rnd(){ seed = (seed*9301 + 49297) % 233280; return seed/233280; }
+
+  const dots = [];
+  const xEnd = 1225;
+
+  // dense aliasing mosaic through the ERO and vena contracta:
+  // small, tightly packed dots so the neck is filled, not sparse
+  for(let x = 504; x < 605; x += 2.2){
+    const hw = jetHalfWidth(x);
+    const n = Math.max(3, Math.round(hw/3.2));
+    for(let k=0;k<n;k++){
+      if(rnd() < 0.88){
+        const yy = oy + (rnd()*2-1)*hw*0.95;
+        const r = 1.5 + rnd()*2.6;
+        dots.push({x:x + (rnd()*2.2-1.1), y:yy, r, c:palette[Math.floor(rnd()*palette.length)]});
+      }
+    }
+  }
+
+  // expanding turbulent cone into the LA
+  for(let x = 605; x < xEnd; x += 4){
+    const hw = jetHalfWidth(x);
+    const n = Math.max(1, Math.round(hw/9));
+    for(let k=0;k<n;k++){
+      if(rnd() < 0.62){
+        const yy = oy + (rnd()*2-1)*hw*0.98;
+        const r = 2.2 + rnd()*5.4;
+        dots.push({x:x + (rnd()*4-2), y:yy, r, c:palette[Math.floor(rnd()*palette.length)]});
+      }
+    }
+  }
+  dots.sort((a,b)=>b.r-a.r);
+  const frag = document.createDocumentFragment();
+  dots.forEach(dd=>{
+    const c = document.createElementNS(NS,'circle');
+    c.setAttribute('cx', dd.x.toFixed(1));
+    c.setAttribute('cy', dd.y.toFixed(1));
+    c.setAttribute('r', Math.min(dd.r, jetHalfWidth(dd.x)*0.9).toFixed(1));
+    c.setAttribute('fill', dd.c);
+    frag.appendChild(c);
+  });
+  jet.appendChild(frag);
+
+  /* ---------- eccentric (wall-hugging) jet ----------
+     Alternative jet shown when the phrase in point 3 is clicked: the jet
+     sweeps up to the LA wall (Coanda-like), then runs flattened along it —
+     and stays NARROWER than the central jet, since it can only entrain
+     from its free side and loses momentum to the wall. */
+  const eccWall = document.getElementById('eccWall');
+  const eccJet  = document.getElementById('eccJet');
+  const wallY = x => 204 + 0.02*(x-520);
+  (function buildEccentric(){
+    // the LA wall itself
+    const wp = document.createElementNS(NS,'path');
+    let dw = `M 516 ${wallY(516).toFixed(1)}`;
+    for(let x=560;x<=1225;x+=40) dw += ` L ${x} ${wallY(x).toFixed(1)}`;
+    wp.setAttribute('d',dw);
+    wp.setAttribute('fill','none');
+    wp.setAttribute('stroke','#2b3a8f');
+    wp.setAttribute('stroke-width','4');
+    eccWall.appendChild(wp);
+    const wl = document.createElementNS(NS,'text');
+    wl.setAttribute('x','760'); wl.setAttribute('y','192');
+    wl.setAttribute('font-size','15'); wl.setAttribute('font-style','italic');
+    wl.setAttribute('fill','#2b3a8f'); wl.setAttribute('font-family','inherit');
+    wl.textContent = 'LA wall';
+    eccWall.appendChild(wl);
+
+    // jet geometry: top edge curves from the orifice up to the wall, then hugs it
+    const xTurn = 730;
+    const ease = u => 0.5 - 0.5*Math.cos(Math.PI*Math.min(Math.max(u,0),1));
+    const topEdge = x => {
+      if(x >= xTurn) return wallY(x);
+      const u = (x-512)/(xTurn-512);
+      return 349 + (wallY(xTurn)-349)*ease(u);
+    };
+    const eccWidth = x => {
+      const t = x-512;
+      if(t < 42) return 44 - (44-26)*(t/42);   // ERO -> vena contracta
+      return Math.min(26 + 0.10*(t-42), 72);   // slow one-sided growth
+    };
+
+    let s2 = 314;
+    const ernd2 = ()=>{ s2=(s2*9301+49297)%233280; return s2/233280; };
+    const f = document.createDocumentFragment();
+    const xJetEnd = 1000;                        // jet dissipates well before the frame edge
+    for(let x=512;x<xJetEnd;x+=3.2){
+      const ty = topEdge(x), w = eccWidth(x);
+      // thin out over the last stretch so the tip fades rather than cuts off
+      const fade = x < 880 ? 1 : Math.max(0, 1-(x-880)/(xJetEnd-880));
+      const n = Math.max(2, Math.round(w/7));
+      for(let k=0;k<n;k++){
+        if(ernd2() < 0.78*fade){
+          const c = document.createElementNS(NS,'circle');
+          c.setAttribute('cx',(x + ernd2()*3.2-1.6).toFixed(1));
+          c.setAttribute('cy',(ty + 2 + ernd2()*(w-4)).toFixed(1));
+          c.setAttribute('r',(1.8 + ernd2()*4.2).toFixed(1));
+          c.setAttribute('fill', palette[Math.floor(ernd2()*palette.length)]);
+          f.appendChild(c);
+        }
+      }
+    }
+    eccJet.appendChild(f);
+  })();
+
+  /* ---------- perpendicular-line demo ----------
+     Illustrates the PISA card's argument: on a line perpendicular to the
+     converging flow, the central point is fastest; the point with EQUAL
+     velocity off-axis lies closer to the valve — tracing the curved shell. */
+  const isoDemo = document.getElementById('isoDemo');
+  (function buildIsoDemo(){
+    const mk = (tag)=>document.createElementNS(NS,tag);
+    const xL = ox - 82;                          // the perpendicular line
+    // highlight the isovelocity shell (r=82) that P1 and P3 share
+    const hl = mk('path');
+    hl.setAttribute('d', `M ${ox} ${(oy-82).toFixed(1)} A 82 82 0 0 0 ${ox} ${(oy+82).toFixed(1)}`);
+    hl.setAttribute('fill','none');
+    hl.setAttribute('stroke','#d9a520');
+    hl.setAttribute('stroke-width','9');
+    hl.setAttribute('opacity','.5');
+    isoDemo.appendChild(hl);
+    // the straight perpendicular line
+    const ln = mk('line');
+    ln.setAttribute('x1',xL); ln.setAttribute('y1',oy-118);
+    ln.setAttribute('x2',xL); ln.setAttribute('y2',oy+118);
+    ln.setAttribute('stroke','#1e2a6e'); ln.setAttribute('stroke-width','2.8');
+    ln.setAttribute('stroke-dasharray','5 4');
+    isoDemo.appendChild(ln);
+
+    const FAST='#a86e00', SLOW='#1e8f60';       // deep gold pair = equal velocity; ring-green = slower
+    function dot(x,y,col){ const c=mk('circle'); c.setAttribute('cx',x); c.setAttribute('cy',y);
+      c.setAttribute('r','6.5'); c.setAttribute('fill',col);
+      c.setAttribute('stroke','#ffffff'); c.setAttribute('stroke-width','2.2');
+      isoDemo.appendChild(c); }
+    function arrow(x0,y0,len,col,markerId){
+      const dx=ox-x0, dy=oy-y0, L=Math.hypot(dx,dy);
+      const x1=x0+len*dx/L, y1=y0+len*dy/L;
+      const a=mk('line');
+      a.setAttribute('x1',x0); a.setAttribute('y1',y0);
+      a.setAttribute('x2',x1.toFixed(1)); a.setAttribute('y2',y1.toFixed(1));
+      a.setAttribute('stroke',col); a.setAttribute('stroke-width','3.4');
+      a.setAttribute('marker-end',`url(#${markerId})`);
+      isoDemo.appendChild(a);
+    }
+    function label(x,y,txt,anchor,col){
+      const t=mk('text');
+      t.setAttribute('x',x); t.setAttribute('y',y);
+      t.setAttribute('font-size','15.5'); t.setAttribute('font-style','italic');
+      t.setAttribute('font-weight','700');
+      t.setAttribute('stroke','#eef1fe'); t.setAttribute('stroke-width','3.5');
+      t.setAttribute('paint-order','stroke');
+      t.setAttribute('fill',col||'#1e2a6e'); t.setAttribute('font-family','inherit');
+      if(anchor) t.setAttribute('text-anchor',anchor);
+      t.textContent=txt; isoDemo.appendChild(t);
+    }
+
+    // P1: center of the line — fastest (gold, like the shell it sits on)
+    dot(xL, oy, FAST); arrow(xL, oy, 36, FAST, 'isoArrowFast');
+    label(xL-12, oy+5, 'center point', 'end', FAST);
+    // P2: peripheral point on the SAME line — slower (blue)
+    dot(xL, oy-80, SLOW); arrow(xL, oy-80, 18, SLOW, 'isoArrowSlow');
+    label(xL-12, oy-76, 'slower', 'end', SLOW);
+    // move toward the valve along the radial until velocity matches P1:
+    const ux=(ox-xL)/Math.hypot(ox-xL,80), uy=80/Math.hypot(ox-xL,80);
+    const p3x=ox-82*ux, p3y=oy-82*uy;
+    const g=mk('line');                          // dashed guide P2 -> P3
+    g.setAttribute('x1',xL); g.setAttribute('y1',oy-80);
+    g.setAttribute('x2',(p3x-3*ux).toFixed(1)); g.setAttribute('y2',(p3y+3*uy).toFixed(1));
+    g.setAttribute('stroke','#c22b1c'); g.setAttribute('stroke-width','2');
+    g.setAttribute('stroke-dasharray','3 3');
+    g.setAttribute('marker-end','url(#isoArrow)');
+    isoDemo.appendChild(g);
+    // P3: same velocity as P1 — same gold, sitting on the same (highlighted) shell
+    dot(p3x.toFixed(1), p3y.toFixed(1), FAST); arrow(p3x, p3y, 36, FAST, 'isoArrowFast');
+    label(p3x+8, p3y-46, 'same velocity', null, FAST);
+    label(p3x+8, p3y-28, 'as the center point', null, FAST);
+  })();
+
+  /* ---------- "velocity increases" annotation ----------
+     Shown while the PISA card is open: a single arrow in the flow
+     direction, labeled, beneath the convergence zone. */
+  const velField = document.getElementById('velField');
+  (function buildVelArrow(){
+    const a = document.createElementNS(NS,'line');
+    a.setAttribute('x1','195'); a.setAttribute('y1','122');
+    a.setAttribute('x2','455'); a.setAttribute('y2','122');
+    a.setAttribute('stroke','#1e2a6e'); a.setAttribute('stroke-width','3.4');
+    a.setAttribute('marker-end','url(#isoArrow)');
+    velField.appendChild(a);
+    const t = document.createElementNS(NS,'text');
+    t.setAttribute('x','325'); t.setAttribute('y','104');
+    t.setAttribute('text-anchor','middle');
+    t.setAttribute('font-size','16'); t.setAttribute('font-style','italic');
+    t.setAttribute('font-weight','700'); t.setAttribute('fill','#1e2a6e');
+    t.setAttribute('font-family','inherit');
+    t.setAttribute('stroke','#eef1fe'); t.setAttribute('stroke-width','3.5');
+    t.setAttribute('paint-order','stroke');
+    t.textContent = 'velocity increases';
+    velField.appendChild(t);
+
+    // two perpendicular arrows: from the jet's edges toward its center axis
+    function vArrow(y0,y1){
+      const v = document.createElementNS(NS,'line');
+      v.setAttribute('x1','232'); v.setAttribute('y1',y0);
+      v.setAttribute('x2','232'); v.setAttribute('y2',y1);
+      v.setAttribute('stroke','#1e2a6e'); v.setAttribute('stroke-width','3.4');
+      v.setAttribute('marker-end','url(#isoArrow)');
+      velField.appendChild(v);
+    }
+    function vLabel(cy){
+      const s = document.createElementNS(NS,'text');
+      s.setAttribute('x','214'); s.setAttribute('y',cy);
+      s.setAttribute('text-anchor','middle');
+      s.setAttribute('transform',`rotate(-90 214 ${cy})`);
+      s.setAttribute('font-size','15'); s.setAttribute('font-style','italic');
+      s.setAttribute('font-weight','700'); s.setAttribute('fill','#1e2a6e');
+      s.setAttribute('font-family','inherit');
+      s.setAttribute('stroke','#eef1fe'); s.setAttribute('stroke-width','3.5');
+      s.setAttribute('paint-order','stroke');
+      s.textContent = 'velocity increases';
+      velField.appendChild(s);
+    }
+    vArrow(186, 298);   // from above, pointing down toward the center axis
+    vLabel(242);
+    vArrow(556, 444);   // from below, pointing up toward the center axis
+    vLabel(500);
+  })();
+
+  const jetGroup = document.getElementById('jet');
+  let eccOn = false;
+  function setEcc(on, restoreEntrain){
+    eccOn = on;
+    jetGroup.classList.toggle('off', on);
+    eccWall.classList.toggle('on', on);
+    eccJet.classList.toggle('on', on);
+    if(on){
+      document.getElementById('entrainLayer').classList.remove('on');
+    }else if(restoreEntrain){
+      document.getElementById('entrainLayer').classList.add('on');
+    }
+  }
+
+  /* ---------- entrainment overlay ----------
+     Stationary LA blood (pale dots) being drawn into the jet edges,
+     with arrows curving inward-downstream. Hidden until the
+     jet-widening answer is revealed. */
+  const entrain = document.getElementById('entrainLayer');
+  (function buildEntrainment(){
+    let es = 7;                                  // separate seed, stable layout
+    const ernd = ()=>{ es=(es*9301+49297)%233280; return es/233280; };
+    const RED = '#e0301e';
+    const label = document.createElementNS(NS,'text');
+    label.setAttribute('x','870'); label.setAttribute('y','168');
+    label.setAttribute('font-size','15'); label.setAttribute('font-style','italic');
+    label.setAttribute('fill','#7a86bf'); label.setAttribute('font-family','inherit');
+    label.textContent = 'stationary LA blood entrained into the jet';
+    entrain.appendChild(label);
+
+    // color along the capture path: red while stationary/slow,
+    // shifting to the aliasing mosaic as blood joins the jet
+    function pathColor(f){
+      if(f < 0.38) return RED;
+      if(f < 0.60) return '#f2622e';                       // speeding up
+      return palette[Math.floor(ernd()*palette.length)];   // aliased: mosaic
+    }
+    const q = (t,p0,pc,p1)=> (1-t)*(1-t)*p0 + 2*(1-t)*t*pc + t*t*p1;
+
+    [-1, 1].forEach(side=>{                      // -1 = above the jet, +1 = below
+      const drift = document.createElementNS(NS,'g');
+      drift.setAttribute('class', side<0 ? 'entrain-drift-top' : 'entrain-drift-bottom');
+      const arrows = document.createElementNS(NS,'g');
+      arrows.setAttribute('fill','none');
+      arrows.setAttribute('stroke','#8f9ad4');
+      arrows.setAttribute('stroke-width','1.8');
+
+      [690, 815, 945, 1075].forEach(x=>{
+        const edgeY = oy + side*jetHalfWidth(x);
+        // curved arrow: starts out in still LA blood, bends inward + downstream
+        const x0=x-58, y0=edgeY + side*72;
+        const xc=x-16, yc=edgeY + side*30;
+        const x1=x+20, y1=edgeY + side*7;
+        const p = document.createElementNS(NS,'path');
+        p.setAttribute('d', `M ${x0} ${y0.toFixed(1)} Q ${xc} ${yc.toFixed(1)} ${x1} ${y1.toFixed(1)}`);
+        p.setAttribute('marker-end','url(#flowArrow)');
+        arrows.appendChild(p);
+
+        // stationary pool at the arrow's origin: uniform red
+        for(let k=0;k<5;k++){
+          const c = document.createElementNS(NS,'circle');
+          c.setAttribute('cx',(x0 - 16 + ernd()*44).toFixed(1));
+          c.setAttribute('cy',(y0 + side*(ernd()*32 - 4)).toFixed(1));
+          c.setAttribute('r',(2.1 + ernd()*2.8).toFixed(1));
+          c.setAttribute('fill', RED);
+          c.setAttribute('opacity','.85');
+          drift.appendChild(c);
+        }
+        // chain of parcels along the capture path: red -> orange -> mosaic
+        // (mosaic stage begins while still OUTSIDE the jet, so it reads clearly)
+        [0.26, 0.44, 0.60, 0.74, 0.87, 0.97].forEach(t=>{
+          const c = document.createElementNS(NS,'circle');
+          c.setAttribute('cx', q(t,x0,xc,x1).toFixed(1));
+          c.setAttribute('cy', (q(t,y0,yc,y1) + side*(ernd()*6-3)).toFixed(1));
+          const mosaic = t >= 0.60;
+          c.setAttribute('r', (mosaic ? 3.6 + ernd()*2.6 : 2.4 + ernd()*2.2).toFixed(1));
+          c.setAttribute('fill', pathColor(t));
+          if(mosaic){ c.setAttribute('stroke','#ffffff'); c.setAttribute('stroke-width','1.2'); }
+          drift.appendChild(c);
+        });
+        // small mosaic burst around the arrow tip, still against the light background
+        for(let k=0;k<4;k++){
+          const c = document.createElementNS(NS,'circle');
+          c.setAttribute('cx',(x1 - 6 + ernd()*16).toFixed(1));
+          c.setAttribute('cy',(y1 + side*(3 + ernd()*13)).toFixed(1));
+          c.setAttribute('r',(3.0 + ernd()*2.6).toFixed(1));
+          c.setAttribute('fill', palette[Math.floor(ernd()*palette.length)]);
+          c.setAttribute('stroke','#ffffff');
+          c.setAttribute('stroke-width','1.2');
+          drift.appendChild(c);
+        }
+      });
+      drift.appendChild(arrows);
+      entrain.appendChild(drift);
+    });
+  })();
+
+  /* ---------- interactive hotspots ---------- */
+  const hotspotData = [
+    {
+      id:'hs-ero', x:504, y:305, reveal:true,
+      q:'What is the effective regurgitant orifice (ERO)?',
+      a:'The gap between the mitral valve leaflets. Its area is called the <b>effective regurgitant orifice area (EROA)</b>, and it is the key lesion-severity measure: <b>&ge; 0.4&nbsp;cm&sup2;</b> indicates severe MR. It is calculated by using the <b>PISA method</b>, but when PISA is expected not to be accurate, there are also other ways to calculate it:<br>1) The <b>volumetric method</b>: regurgitant volume = stroke volume &minus; LVOT stroke volume, and EROA = regurgitant volume &divide; MR VTI.<br>2) <b>Vena contracta width</b> as a surrogate of orifice size (or direct <b>3D planimetry</b> of the vena contracta area).'
+    },
+    {
+      id:'hs-vc', x:575, y:330, reveal:true,
+      q:'Why is the jet narrower <i>after</i> the narrowest portion of the valve?',
+      a:'Because of <b>flow contraction</b>: the converging streamlines cannot turn sharply the instant they pass the orifice. The streamlines on the edge of the jet that are angled more inward are still pointing towards the center of the jet. Once the jet passes by the narrowest point of the valve (<b>ERO</b> as described before), the orifice walls no longer constrain them, but their inward velocity component doesn\u2019t vanish. Each parcel of blood still has both a <b>forward component</b> (toward LA) and an <b>inward component</b> (toward the jet center). Initially, inertia keeps the edges of the jet angled inward, so the jet continues to narrow for a short distance downstream. That point of minimal cross-section is the <b>vena contracta</b>, which is therefore slightly <b>smaller and slightly more distant</b> than the anatomic orifice. Its width closely approximates the effective orifice, is largely <b>load-independent</b> (with a higher driving pressure the jet streamlines will accelerate but will still converge at the same spot), and <b>&ge; 7&nbsp;mm</b> suggests severe MR.<div class="bonus"><div class="q"><span class="bonus-tag">Bonus question:</span> Severe AR and severe MR are both defined as having regurgitant volume of 60&nbsp;mL. However, the vena contracta that corresponds to severe regurgitation is 6&nbsp;mm for AR and 7&nbsp;mm for MR. Why does the mitral valve need a wider orifice in order to allow for the same regurgitant volume?</div></div>'
+    },
+    {
+      id:'hs-pisa', x:400, y:430, reveal:true,
+      q:'What are these hemispheres and converging lines on the LV side?',
+      a:'As the mitral regurgitation jet moves from the left ventricle towards the mitral valve during systole, it consists of multiple <b>streamlines</b> (represented by the blue-gray lines in the picture), some of which are in the center while some others are in the periphery angled towards the center. The ones in the periphery come in touch with blood in the LV and are <b>slowed down</b>, therefore the velocity in the center of the jet is faster. Also, the velocity gets faster as we move towards the mitral valve (because the jet has to traverse a <b>narrower passage</b>). Therefore, <span class="ecc-link iso-link" title="Click to see it on the figure">if we draw a straight line perpendicular to the jet</span>, and take two points belonging in that line, they will not have the same velocity. The central point will have a higher velocity. Therefore, to find a point in the jet that has the same velocity as the central point of that line, we have to move more towards the mitral valve. <b>That is how the isovelocity circles are formed.</b><br><br>By <b>conservation of mass</b>, all flow crossing a shell must also pass through the orifice: <b>A&#8321;V&#8321; = A&#8322;V&#8322;</b>. Color Doppler hands us the shell where velocity equals the <b>aliasing (Nyquist) velocity</b>: and apart from the velocity we can also measure its <b>radius</b>. The shell is a hemisphere, so A&#8321; = 2&pi;r&sup2; and V&#8321; is the aliasing velocity; V&#8322; is the peak MR velocity by CW Doppler. Solving for the one unknown gives <b>A&#8322; = the ERO</b>.'
+    },
+    {
+      id:'hs-jet', x:840, y:300, reveal:true,
+      q:'Why does the jet widen again <i>after</i> the vena contracta?',
+      a:'At the vena contracta the <b>inward velocity components from both edges of the jet collide</b>, and therefore the jet slows down and kinetic energy is reduced, and the remaining energy is <b>converted to pressure</b> (energy cannot disappear on its own). Therefore, we are left only with the parallel central components of the jet. From there, the fast moving jet encounters slow moving (almost stationary) LA blood, and it exerts a <b>drag force</b> and <b>entrains</b> the neighboring stationary LA blood.<br><br>That leads to an <b>increase in the jet mass</b>, and therefore the jet width will increase, and therefore the jet appears wider after the vena contracta.<br><br>Another important point: according to the <b>conservation of momentum</b>, momentum, just like energy, cannot be lost. Since the mass of the jet increases due to entrainment, the <b>jet velocity must fall</b> (momentum = mass &times; velocity). Therefore, the jet will slow down, and at some point its velocity will fall below the <b>Nyquist limit</b>, and there will be no more aliasing and we will stop seeing the jet. <b>Jets that are faster to begin with will take longer to reach a velocity lower than the Nyquist limit.</b><br><br>Based on the above, here is where the clinical correlation comes into play:<br>1) We <b>cannot use how far a jet travels into the LA</b> as a reliable estimator of MR severity. A jet that goes farther into the LA might just be a faster mild MR jet to begin with, and not a severe MR jet.<br>2) We <b>cannot use the jet width at the left atrium</b> as a reliable estimator of the MR severity. A 6 m/s jet to begin with will have a smaller mass (and therefore smaller width) as it passes through the left atrium compared with a 5 m/s jet, because momentum (mass &times; velocity) needs to be preserved (Figure 14 at the 2017 guidelines).<br>3) A jet that is not central (an <span class="ecc-link" title="Click to see it on the figure">eccentric, wall-hugging jet</span>) can only entrain blood from one side, and it also <b>loses momentum from the force acted to it from the left atrial wall</b>, so it appears narrower on color Doppler. Given its eccentricity, <b>PISA calculations might also not be accurate</b>, therefore these eccentric jets can be better assessed by <b>CMR</b> to determine their severity.'
+    }
+  ];
+
+  const hsLayer = document.getElementById('hotspots');
+  const wrap = document.getElementById('wrap');
+  const closers = [];
+  const hsEls = [];
+
+  hotspotData.forEach(h=>{
+    const pulse = document.createElementNS(NS,'circle');
+    pulse.setAttribute('cx',h.x); pulse.setAttribute('cy',h.y);
+    pulse.setAttribute('r',13); pulse.setAttribute('class','pulse');
+    hsLayer.appendChild(pulse);
+
+    const g = document.createElementNS(NS,'g');
+    g.setAttribute('class','hotspot');
+    g.setAttribute('tabindex','0');
+    g.setAttribute('role','button');
+    g.setAttribute('aria-label', h.q.replace(/<[^>]+>/g,''));
+    g.dataset.id = h.id;
+
+    const ring = document.createElementNS(NS,'circle');
+    ring.setAttribute('cx',h.x); ring.setAttribute('cy',h.y);
+    ring.setAttribute('r',13); ring.setAttribute('class','ring');
+
+    const t = document.createElementNS(NS,'text');
+    t.setAttribute('x',h.x); t.setAttribute('y',h.y+5);
+    t.setAttribute('text-anchor','middle');
+    t.textContent = 'i';
+
+    g.appendChild(ring); g.appendChild(t);
+    hsLayer.appendChild(g);
+    hsEls.push({pulse, ring, t, h});
+
+    const tip = document.createElement('div');
+    tip.className = 'tooltip';
+    tip.id = h.id;
+    if(h.reveal){
+      tip.innerHTML = `<div class="q">${h.q}</div>
+        <button class="reveal-btn" type="button">Reveal answer</button>
+        <div class="a hidden-a">${h.a}</div>`;
+    }else{
+      tip.innerHTML = `<div class="q">${h.q}</div><div class="a">${h.a}</div>`;
+    }
+    wrap.appendChild(tip);
+
+    let pinned = false;                // revealed card: stays until outside click / Esc
+    let hideTimer = null;
+
+    const revealBtn = tip.querySelector('.reveal-btn');
+    if(revealBtn){
+      revealBtn.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        pinned = true;
+        clearTimeout(hideTimer);       // cancel any hide scheduled by the marker's blur
+        tip.classList.add('wide');     // long answers get a wider card
+        tip.querySelector('.hidden-a:not(.bonus-a)').classList.add('open');
+        revealBtn.classList.add('gone');
+        place();                       // card grew: re-anchor it
+        tip.classList.add('show');     // belt and braces: ensure it stays visible
+        if(h.id==='hs-jet') entrain.classList.add('on');
+        if(h.id==='hs-pisa') velField.classList.add('on');
+      });
+    }
+    function resetReveal(){
+      if(!revealBtn) return;
+      tip.querySelectorAll('.hidden-a').forEach(el=>el.classList.remove('open'));
+      tip.querySelectorAll('.reveal-btn').forEach(b=>b.classList.remove('gone'));
+      tip.classList.remove('wide');
+      tip.classList.remove('side');
+      tip.style.maxWidth = '';
+    }
+    function closeTip(){
+      pinned = false;
+      tip.classList.remove('show');
+      if(h.id==='hs-jet'){
+        entrain.classList.remove('on');
+        setEcc(false, false);          // revert to the central jet
+      }
+      if(h.id==='hs-pisa'){ isoDemo.classList.remove('on'); velField.classList.remove('on'); }
+      setTimeout(resetReveal, 200);
+    }
+    closers.push(closeTip);
+    // clicks inside the card never close it
+    tip.addEventListener('click', (e)=>e.stopPropagation());
+
+    // point 3's phrase toggles the eccentric wall-hugging jet on the figure
+    const eccLink = tip.querySelector('.ecc-link:not(.iso-link)');
+    if(eccLink){
+      eccLink.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        setEcc(!eccOn, /*restoreEntrain*/ true);
+      });
+    }
+
+    // the PISA card's phrase toggles the perpendicular-line demo;
+    // the velocity arrows stay up alongside it
+    const isoLink = tip.querySelector('.iso-link');
+    if(isoLink){
+      isoLink.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const on = !isoDemo.classList.contains('on');
+        isoDemo.classList.toggle('on', on);
+        if(on){ pinned = true; clearTimeout(hideTimer); tip.classList.add('show'); }
+      });
+    }
+
+    function place(){
+      const vb = svg.viewBox.baseVal;
+      const rect = svg.getBoundingClientRect();
+      const wrapRect = wrap.getBoundingClientRect();
+      const sx = rect.width / vb.width;
+      const sy = rect.height / vb.height;
+      const px = (rect.left - wrapRect.left) + h.x*sx;
+      const py = (rect.top  - wrapRect.top ) + h.y*sy;
+
+      tip.classList.remove('below');
+      tip.style.left='0px'; tip.style.top='0px';
+      const tw = tip.offsetWidth || 320;
+      const th = tip.offsetHeight || 120;
+
+      let left = px - 34;
+      let top  = py - th - 24;
+      tip.classList.remove('side');
+      tip.style.maxWidth = '';
+      const dockLeft = (rect.left - wrapRect.left) + 645*sx;
+      const dockAvail = wrapRect.width - dockLeft - 14;
+      if(h.id==='hs-pisa' && tip.classList.contains('wide') && dockAvail >= 270){
+        // dock over the jet side so the LV annotations and arrows stay visible,
+        // sized to fit exactly the space right of the LV zone
+        left = dockLeft;
+        top  = (rect.top  - wrapRect.top ) + 150*sy;
+        tip.style.maxWidth = Math.min(560, dockAvail) + 'px';
+        tip.classList.add('side');
+      }else if(h.id==='hs-jet' && tip.classList.contains('wide')){
+        // keep the upper LA visible: put the wide card BELOW the marker
+        top = py + 24; tip.classList.add('below');
+      }else if(top < 8){ top = py + 24; tip.classList.add('below'); }
+      if(!tip.classList.contains('side')){
+        if(left + tw > wrapRect.width - 10) left = wrapRect.width - tw - 10;
+        if(left < 10) left = 10;
+      }
+
+      tip.style.left = left + 'px';
+      tip.style.top  = top + 'px';
+    }
+
+    function show(){
+      clearTimeout(hideTimer);
+      document.querySelectorAll('.tooltip.show').forEach(el=>{ if(el!==tip) el.classList.remove('show'); });
+      place();
+      tip.classList.add('show');
+    }
+    function hideSoon(){
+      if(pinned) return;               // revealed answers don't hide on hover-out
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(()=>{
+        if(pinned) return;             // re-check at fire time: pinning cancels stale hides
+        tip.classList.remove('show');
+        if(h.id==='hs-jet'){
+          entrain.classList.remove('on');
+          setEcc(false, false);
+        }
+        if(h.id==='hs-pisa'){ isoDemo.classList.remove('on'); velField.classList.remove('on'); }
+        setTimeout(resetReveal, 200);
+      }, 180);
+    }
+
+    g.addEventListener('mouseenter', show);
+    g.addEventListener('mouseleave', hideSoon);
+    tip.addEventListener('mouseenter', ()=>clearTimeout(hideTimer));
+    tip.addEventListener('mouseleave', hideSoon);
+
+    g.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      tip.classList.contains('show') ? closeTip() : show();
+    });
+    g.addEventListener('keydown', (e)=>{
+      if(e.key==='Enter' || e.key===' '){ e.preventDefault(); show(); }
+      if(e.key==='Escape'){ closeTip(); }
+    });
+    g.addEventListener('blur', hideSoon);
+
+    window.addEventListener('resize', ()=>{ if(tip.classList.contains('show')) place(); });
+  });
+
+  function sizeHotspots(){
+    const w = svg.getBoundingClientRect().width;
+    const s = w < 520 ? 2.4 : (w < 760 ? 1.7 : 1);
+    hsEls.forEach(o=>{
+      o.ring.setAttribute('r', 13*s);
+      o.pulse.setAttribute('r', 13*s);
+      o.t.style.fontSize = (15*s) + 'px';
+      o.t.setAttribute('y', o.h.y + 5*s);
+    });
+  }
+  sizeHotspots();
+  window.addEventListener('resize', sizeHotspots);
+
+  document.addEventListener('click', ()=>{
+    closers.forEach(fn=>fn());
+  });
+})();
+</script>
+</body>
+</html>
